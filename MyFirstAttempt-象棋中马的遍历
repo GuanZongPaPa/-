@@ -1,0 +1,189 @@
+// 象棋中马的遍历.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+//
+
+#include "pch.h"
+#include <stdlib.h>
+#include <stdio.h>
+#define N 8
+#define INT 1000//无穷数
+
+//地图节点数据结构
+typedef struct Node {
+	int c;//表示是否走过（1：走过，0：未走过）
+	int n;//表示方向
+}node;
+
+//程序栈的建立
+typedef struct Stack {
+	int x;
+	int y;
+	Stack* next;
+}stack;
+
+//马的数据结构
+typedef struct Horse {
+	int x;
+	int y;
+}horse;
+
+//马能够走的位置保存为全局变量
+int fx[8] = { 1,2,2,1,-1,-2,-2,-1 };
+int fy[8] = { 2,1,-1,-2,-2,-1,1,2 };
+
+//程序栈的初始化,出栈及其入栈
+stack* InitialStack() {
+	stack* head = (stack*)malloc(sizeof(stack));
+	head->x = -1;
+	head->y = -1;
+	head->next = NULL;
+	return head;
+}
+
+void Pop(stack* head) {
+	stack* p = head->next;
+	head->next = p->next;
+	free(p);
+}
+
+void Push(stack* head, int x, int y) {
+	stack* p = (stack*)malloc(sizeof(stack));
+	p->x = x;
+	p->y = y;
+	p->next = head->next;
+	head->next = p;
+}
+
+//可视化输出棋盘
+void refresh(node Map[][N]) {
+	system("cls");
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N; j++) {
+			printf("%c ", Map[i][j].c == 0 ? 1 : ' ');
+		}
+		printf("\n");
+	}
+}
+
+void InitialMap(node Map[][N] ) {
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++) {
+			Map[i][j].c = 0;
+			Map[i][j].n = 0x00;
+		}
+}
+
+//检查地图是否已经完全遍历
+bool CheckFinish(node Map[][N] ) {
+	for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++) {
+			if (Map[i][j].c == 0) {
+				return false;
+			}
+		}
+	return true;
+}
+
+//返回这个点的可走端口数
+int Optimal(node Map[][N], int x, int y) {
+	int cout = 0;
+	for (int i = 0; i < 8; i++) {
+		if (Map[x + fx[i]][y + fy[i]].c == 0) {
+			cout++;
+		}
+	}
+	return cout;
+}
+
+//每一步如何落子，采用寻找局部最优解的方式选择要走的方向
+int EachFoot (node Map[][N],horse &pony,stack* head) {
+	int dir[8] = {-1,-1,-1,-1,-1,-1,-1,-1 };//用来存储一个位置点周围哪些方向可以走(dir[i]的值代表这个出口走出的下一个位置点的出口数,值为-1则代表这个方向无法走）
+	int optimal = -1;
+	int direc = 0;
+	for (int i = 0; i < 8; i++) {
+    //首先检查要走的方向是否越出地图边界
+		if (pony.x + fx[i] >= 0 && pony.x + fx[i] < N && pony.y + fy[i] >= 0 && pony.y + fy[i] < N) {
+			//再检查八个方向，如果该方向的位置点值为0，且以前没有进去过，则记录可走位置
+			if (Map[pony.x + fx[i]][pony.y + fy[i]].c == 0 && !(Map[pony.x][pony.y].n & (0x01 << i))) {
+				dir[i] = Optimal(Map, pony.x + fx[i], pony.y + fy[i]);
+				optimal = INT;
+			}
+		}
+	}
+  //如果存在可以走的方向
+	if (optimal != -1 ) {
+		for (int i = 0; i < 8; i++) {
+    //找到下一个出口最少的位置点，就是我们的局部最优解
+			if (dir[i] < optimal && dir[i] >= 0) {
+				optimal = dir[i];
+				direc = i;
+			}
+		}
+		//找到局部最优解，开始行走
+		Map[pony.x][pony.y].n = Map[pony.x][pony.y].n|(0x01 << direc);//八位二进制数代表每个地图点，走过哪些方向（共八个）
+		pony.x += fx[direc];//修改马的位置
+		pony.y += fy[direc];
+		Map[pony.x][pony.y].c = 1;//新位置点占领
+		Push(head, pony.x, pony.y);//将新的位置点入栈
+		return 1;
+	}
+
+//如果没有可走的方向，则清空当前位置点记录，退栈
+	else {
+		Map[head->next->x][head->next->y].n = 0x00;
+		Map[head->next->x][head->next->y].c = 0;
+		Pop(head);
+		if (head->next == NULL) {
+			return -1;
+		}
+		pony.x = head->next->x;
+		pony.y = head->next->y;
+		return 0;
+	}
+
+}
+
+
+
+int main()
+{	
+  //初始化
+	node Map[N][N];
+	horse Xiaojianjian;
+  
+	printf("Please input the horse's initial position :");
+  //获取用户输入
+	scanf_s("%d %d", &Xiaojianjian.x, &Xiaojianjian.y);
+  //初始化地图
+	InitialMap(Map);
+  //初始化地图中马的位置
+	Map[Xiaojianjian.x][Xiaojianjian.y].c = 1;
+  //初始化自定义栈
+	stack* head = InitialStack();
+	Push(head, Xiaojianjian.x, Xiaojianjian.y);
+  //这个变量检测地图是否能够被遍历
+	int Exception = INT;
+	//开始运行游戏
+	while (!CheckFinish(Map)) {
+  //refresh函数可视化地图的遍历过程，默认不可视
+		//refresh(Map);
+		Exception = EachFoot(Map, Xiaojianjian, head);
+		if (Exception == -1) {
+			break;
+		}
+    
+    //Exception==0说明此次发生的是退栈操作，不用检查地图是否遍历
+    if(Exception == 0){
+      continue;
+    }
+	}
+
+	if (CheckFinish(Map)) {
+		refresh(Map);
+		printf("Congratulations! Map: %d * %d, You are successful \n",N,N);
+	}
+
+	else {
+		printf("You can't solve this map\n");
+	}
+	return 0;
+}
